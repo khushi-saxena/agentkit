@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentkit — Open-Source Contribution Matcher</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --fg: #e6edf3; --dim: #8b949e; --accent: #58a6ff;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px; background: var(--bg); color: var(--fg);
+    font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--dim); font-size: 14px; margin-bottom: 24px; }
+  .controls { display: flex; gap: 8px; margin-bottom: 12px; }
+  input {
+    flex: 1; padding: 10px 12px; background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px; font-size: 15px;
+  }
+  button {
+    padding: 10px 20px; background: var(--accent); color: #04121f; border: 0;
+    border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { color: var(--warn); font-size: 13px; margin-bottom: 20px; min-height: 20px; }
+
+  .agent {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    padding: 14px 16px; margin-bottom: 10px; opacity: .45; transition: opacity .3s;
+  }
+  .agent.active { opacity: 1; border-color: var(--accent); }
+  .agent.done { opacity: 1; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--dim); flex: none;
+  }
+  .agent.active .dot { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  .agent.done .dot { background: var(--ok); }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  .name { font-weight: 600; }
+  .desc { color: var(--dim); font-size: 13px; }
+  .detail { margin: 8px 0 0 19px; font-size: 14px; }
+  .facts { margin: 6px 0 0 19px; padding: 0; list-style: none; }
+  .facts li {
+    color: var(--dim); font-size: 13px; padding: 2px 0;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
+  .match {
+    border: 1px solid var(--border); border-left: 3px solid var(--ok);
+    border-radius: 6px; background: var(--panel); padding: 14px 16px; margin-bottom: 10px;
+  }
+  .match a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .match a:hover { text-decoration: underline; }
+  .meta { color: var(--dim); font-size: 13px; margin: 4px 0; }
+  .scores { display: flex; gap: 14px; margin: 8px 0; font-size: 13px; }
+  .bar { flex: 1; }
+  .bar span { display: block; color: var(--dim); margin-bottom: 3px; }
+  .track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .fill { height: 100%; background: var(--accent); }
+  .why { font-size: 14px; margin-top: 6px; }
+  h2 { font-size: 17px; margin: 28px 0 12px; }
+  .err { color: var(--bad); }
+
+  .banner {
+    border: 1px solid var(--border); border-left: 3px solid var(--warn);
+    background: var(--panel); border-radius: 6px; padding: 12px 14px;
+    margin-bottom: 20px; font-size: 14px; color: var(--dim);
+  }
+  .banner strong { color: var(--fg); }
+  .banner a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Open-Source Contribution Matcher</h1>
+  <div class="sub">Six agents read your GitHub, work out your skills, then find real issues that fit and stretch you.</div>
+
+  <div class="banner">
+    <strong>Recorded demo.</strong> This replays one real run against
+    github.com/khushi-saxena — every repo, score and drop reason below came out
+    of the pipeline. It is static because the live version needs a Python
+    backend and an API key, neither of which belongs on a public page.
+    Source and instructions:
+    <a href="https://github.com/khushi-saxena/agentkit">github.com/khushi-saxena/agentkit</a>
+  </div>
+
+  <div class="controls">
+    <input id="user" value="khushi-saxena" readonly>
+    <button id="go">Replay run</button>
+  </div>
+  <div class="note" id="note"></div>
+
+  <div id="pipeline"></div>
+  <div id="results"></div>
+</div>
+
+<script>
+const RUN = [
+ {
+  "node": "profile_builder",
+  "label": "Profiler",
+  "desc": "Reading your real GitHub repos",
+  "detail": "Khushi Saxena is a skilled software engineer with experience in full stack development and data engineering, currently pursuing a Master's degree in Computer Science. She has led teams and contributed to significant projects in both academic and professional settings.",
+  "facts": [
+   "level: mid",
+   "tags: Python, TypeScript, FastAPI, PostgreSQL, Docker"
+  ]
+ },
+ {
+  "node": "evidence_assessor",
+  "label": "Skill Assessor",
+  "desc": "Working out your skills, with evidence",
+  "detail": "6 attributes, 2 strong",
+  "facts": [
+   "Python (strong) - used in multiple projects including 'capability-recorder'",
+   "PostgreSQL (strong) - engineered data pipelines at San Diego State University",
+   "TypeScript (working) - projects like 'Walkshed', 'mm-games', 'logs-lens'",
+   "Docker (working) - shipping production features at San Diego State",
+   "CI/CD (working) - built pipelines at UBS",
+   "React.js (working) - shipped production features at San Diego State"
+  ]
+ },
+ {
+  "node": "gap_finder",
+  "label": "Growth Planner",
+  "desc": "Choosing what you should learn next",
+  "detail": "3 growth targets",
+  "facts": [
+   "Database Internals (deep, builds on: PostgreSQL)",
+   "TypeScript Compiler (deep, builds on: TypeScript)",
+   "Docker Networking (deep, builds on: Docker)"
+  ]
+ },
+ {
+  "node": "parallel_searcher",
+  "label": "Issue Scouts",
+  "desc": "Searching GitHub live for open issues",
+  "detail": "19 candidates across 3 targets, running in parallel",
+  "facts": [
+   "microsoft/TypeScript (111,372 stars, 19/20 merged) -> 3 issues",
+   "swc-project/swc (34,205 stars, 10/20 merged) -> 3 issues",
+   "oxc-project/oxc (22,991 stars, 16/20 merged) -> 3 issues",
+   "kubeshark/kubeshark (12,097 stars, 16/20 merged) -> 3 issues",
+   "skyzh/mini-lsm (4,178 stars, 18/20 merged) -> 0 issues"
+  ]
+ },
+ {
+  "node": "junk_filter",
+  "label": "Gatekeeper",
+  "desc": "Throwing out bounty farms and template junk",
+  "detail": "4 kept, 15 dropped",
+  "facts": [
+   "[ServerErrors][TypeScript] main \u2014 title too vague to act on",
+   "[ServerErrors][JavaScript] main \u2014 title too vague to act on",
+   "Source maps do not account for U+2028 \u2014 never mentions typescript/compiler (drifted off-target)",
+   "Wrong behavior of `using` and `await using` \u2014 drifted off-target",
+   "BUG: OrderType's comparators are wrong \u2014 no activity in 180+ days",
+   "jcenter() error \u2014 body too short",
+   "Support for port range input like `1-22,661-` \u2014 no activity in 180+ days"
+  ]
+ },
+ {
+  "node": "audited_ranker",
+  "label": "Matcher",
+  "desc": "Scoring fit vs stretch, then auditing itself",
+  "detail": "2 recommendations (2 dropped on audit)",
+  "facts": [],
+  "matches": [
+   {
+    "id": "https://github.com/microsoft/TypeScript/issues/64715",
+    "group": "microsoft/TypeScript",
+    "title": "`--incremental` keeps stale diagnostics after a change in a `declare global` block of a package declaration file (7.0.2, regression from 6.0.3)",
+    "fit_score": 70,
+    "stretch_score": 40,
+    "attributes_used": [
+     "TypeScript"
+    ],
+    "gained": "TypeScript's incremental compilation and handling of global declarations",
+    "reasoning": "The issue involves TypeScript's incremental compilation and global declarations, which Khushi has experience with through her TypeScript work in 'Walkshed' and 'mm-games'."
+   },
+   {
+    "id": "https://github.com/swc-project/swc/issues/12492",
+    "group": "swc-project/swc",
+    "title": "Compress/minifier: switches incorrectly removes switch case containing closure over initializer binding",
+    "fit_score": 60,
+    "stretch_score": 50,
+    "attributes_used": [
+     "TypeScript"
+    ],
+    "gained": "JavaScript minification and closure handling",
+    "reasoning": "The issue involves TypeScript and JavaScript minification. The specific problem with closures and minification would be new territory."
+   }
+  ]
+ }
+];
+const AGENTS = [{"node": "profile_builder", "label": "Profiler", "desc": "Reading your real GitHub repos"}, {"node": "evidence_assessor", "label": "Skill Assessor", "desc": "Working out your skills, with evidence"}, {"node": "gap_finder", "label": "Growth Planner", "desc": "Choosing what you should learn next"}, {"node": "parallel_searcher", "label": "Issue Scouts", "desc": "Searching GitHub live for open issues"}, {"node": "junk_filter", "label": "Gatekeeper", "desc": "Throwing out bounty farms and template junk"}, {"node": "audited_ranker", "label": "Matcher", "desc": "Scoring fit vs stretch, then auditing itself"}];
+
+const pipeline = document.getElementById('pipeline');
+const results  = document.getElementById('results');
+const btn      = document.getElementById('go');
+let cards = {};
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function card(a) {
+  const el = document.createElement('div');
+  el.className = 'agent';
+  el.innerHTML = `<div class="row"><div class="dot"></div>
+      <div><span class="name">${a.label}</span></div></div>
+    <div class="desc" style="margin-left:19px">${a.desc}</div>`;
+  return el;
+}
+
+function fillCard(ev) {
+  const el = cards[ev.node];
+  el.classList.remove('active');
+  el.classList.add('done');
+  let extra = ev.detail ? `<div class="detail">${esc(ev.detail)}</div>` : '';
+  if (ev.facts && ev.facts.length) {
+    extra += '<ul class="facts">' + ev.facts.map(f => `<li>${esc(f)}</li>`).join('') + '</ul>';
+  }
+  el.insertAdjacentHTML('beforeend', extra);
+}
+
+function showMatches(matches) {
+  results.innerHTML = '<h2>Recommended issues</h2>' + matches.map(m => `
+    <div class="match">
+      <a href="${esc(m.id)}" target="_blank" rel="noopener">${esc(m.title)}</a>
+      <div class="meta">${esc(m.group)}</div>
+      <div class="scores">
+        <div class="bar"><span>fit ${m.fit_score}</span>
+          <div class="track"><div class="fill" style="width:${m.fit_score}%"></div></div></div>
+        <div class="bar"><span>stretch ${m.stretch_score}</span>
+          <div class="track"><div class="fill" style="width:${m.stretch_score}%"></div></div></div>
+      </div>
+      <div class="meta">uses: ${esc(m.attributes_used.join(', '))} &nbsp;|&nbsp; learns: ${esc(m.gained)}</div>
+      <div class="why">${esc(m.reasoning)}</div>
+    </div>`).join('');
+}
+
+function replay() {
+  btn.disabled = true;
+  pipeline.innerHTML = ''; results.innerHTML = ''; cards = {};
+  AGENTS.forEach(a => { cards[a.node] = card(a); pipeline.appendChild(cards[a.node]); });
+  cards[AGENTS[0].node].classList.add('active');
+
+  let i = 0;
+  (function step() {
+    if (i >= RUN.length) { btn.disabled = false; return; }
+    const ev = RUN[i++];
+    fillCard(ev);
+    if (ev.matches) showMatches(ev.matches);
+    if (i < RUN.length) cards[RUN[i].node].classList.add('active');
+    setTimeout(step, 1100);
+  })();
+}
+
+btn.onclick = replay;
+replay();
+</script>
+</body>
+</html>
