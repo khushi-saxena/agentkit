@@ -1,0 +1,10 @@
+langgraph
+langchain-core
+langchain-openai
+langchain-anthropic
+requests
+python-dotenv
+fastapi
+uvicorn
+pytest
+pypdf

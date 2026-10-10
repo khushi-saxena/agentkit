@@ -1,0 +1,25 @@
+[project]
+name = "agentkit"
+version = "0.1.0"
+description = "Reusable blocks for multi-agent pipelines where agents check each other's work"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    "python-dotenv>=1.0",
+    "pypdf>=4.0",
+]
+
+[project.optional-dependencies]
+openai = ["langchain-openai"]
+anthropic = ["langchain-anthropic"]
+server = ["fastapi", "uvicorn"]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["agentkit", "agentkit.executors"]

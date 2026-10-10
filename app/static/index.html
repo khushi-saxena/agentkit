@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-Source Contribution Matcher</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --fg: #e6edf3; --dim: #8b949e; --accent: #58a6ff;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px; background: var(--bg); color: var(--fg);
+    font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--dim); font-size: 14px; margin-bottom: 24px; }
+  .controls { display: flex; gap: 8px; margin-bottom: 12px; }
+  input {
+    flex: 1; padding: 10px 12px; background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px; font-size: 15px;
+  }
+  button {
+    padding: 10px 20px; background: var(--accent); color: #04121f; border: 0;
+    border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { color: var(--warn); font-size: 13px; margin-bottom: 20px; min-height: 20px; }
+
+  .agent {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    padding: 14px 16px; margin-bottom: 10px; opacity: .45; transition: opacity .3s;
+  }
+  .agent.active { opacity: 1; border-color: var(--accent); }
+  .agent.done { opacity: 1; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--dim); flex: none;
+  }
+  .agent.active .dot { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  .agent.done .dot { background: var(--ok); }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  .name { font-weight: 600; }
+  .desc { color: var(--dim); font-size: 13px; }
+  .detail { margin: 8px 0 0 19px; font-size: 14px; }
+  .facts { margin: 6px 0 0 19px; padding: 0; list-style: none; }
+  .facts li {
+    color: var(--dim); font-size: 13px; padding: 2px 0;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+
+  .match {
+    border: 1px solid var(--border); border-left: 3px solid var(--ok);
+    border-radius: 6px; background: var(--panel); padding: 14px 16px; margin-bottom: 10px;
+  }
+  .match a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .match a:hover { text-decoration: underline; }
+  .meta { color: var(--dim); font-size: 13px; margin: 4px 0; }
+  .scores { display: flex; gap: 14px; margin: 8px 0; font-size: 13px; }
+  .bar { flex: 1; }
+  .bar span { display: block; color: var(--dim); margin-bottom: 3px; }
+  .track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .fill { height: 100%; background: var(--accent); }
+  .why { font-size: 14px; margin-top: 6px; }
+  h2 { font-size: 17px; margin: 28px 0 12px; }
+  .err { color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Open-Source Contribution Matcher</h1>
+  <div class="sub">Six agents read your GitHub, work out your skills, then find real issues that fit and stretch you.</div>
+
+  <div class="controls">
+    <input id="user" value="khushi-saxena" placeholder="GitHub username">
+    <button id="go">Run agents</button>
+  </div>
+  <div class="note" id="note"></div>
+
+  <div id="pipeline"></div>
+  <div id="results"></div>
+</div>
+
+<script>
+const pipeline = document.getElementById('pipeline');
+const results  = document.getElementById('results');
+const note     = document.getElementById('note');
+const btn      = document.getElementById('go');
+let cards = {};
+
+function card(a) {
+  const el = document.createElement('div');
+  el.className = 'agent';
+  el.innerHTML = `<div class="row">
+      <div class="dot"></div>
+      <div><span class="name">${a.label}</span></div>
+    </div>
+    <div class="desc" style="margin-left:19px">${a.desc}</div>`;
+  return el;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function markActive(node) {
+  const order = Object.keys(cards);
+  const idx = order.indexOf(node);
+  order.forEach((n, i) => {
+    if (i < idx) return;
+    cards[n].classList.toggle('active', i === idx);
+  });
+}
+
+function fillCard(ev) {
+  const el = cards[ev.node];
+  if (!el) return;
+  el.classList.remove('active');
+  el.classList.add('done');
+  let extra = ev.detail ? `<div class="detail">${esc(ev.detail)}</div>` : '';
+  if (ev.facts && ev.facts.length) {
+    extra += '<ul class="facts">' + ev.facts.map(f => `<li>${esc(f)}</li>`).join('') + '</ul>';
+  }
+  el.insertAdjacentHTML('beforeend', extra);
+  // light up whichever agent comes next
+  const order = Object.keys(cards);
+  const next = order[order.indexOf(ev.node) + 1];
+  if (next) cards[next].classList.add('active');
+}
+
+function showMatches(matches) {
+  if (!matches || !matches.length) {
+    results.innerHTML = '<h2>No matches survived</h2><div class="desc">' +
+      'The gatekeeper or verifier rejected everything. That is the system being ' +
+      'strict, not broken — loosen the thresholds in GitHubOSSDomain to see more.</div>';
+    return;
+  }
+  results.innerHTML = '<h2>Recommended issues</h2>' + matches.map(m => `
+    <div class="match">
+      <a href="${esc(m.id)}" target="_blank" rel="noopener">${esc(m.title)}</a>
+      <div class="meta">${esc(m.group)}</div>
+      <div class="scores">
+        <div class="bar"><span>fit ${m.fit_score}</span>
+          <div class="track"><div class="fill" style="width:${m.fit_score}%"></div></div></div>
+        <div class="bar"><span>stretch ${m.stretch_score}</span>
+          <div class="track"><div class="fill" style="width:${m.stretch_score}%"></div></div></div>
+      </div>
+      <div class="meta">uses: ${esc((m.attributes_used||[]).join(', '))} &nbsp;|&nbsp; learns: ${esc(m.gained||'')}</div>
+      <div class="why">${esc(m.reasoning||'')}</div>
+    </div>`).join('');
+}
+
+btn.onclick = () => {
+  btn.disabled = true;
+  pipeline.innerHTML = ''; results.innerHTML = ''; note.textContent = '';
+  cards = {};
+  const user = document.getElementById('user').value.trim();
+  const es = new EventSource('/api/run?username=' + encodeURIComponent(user));
+
+  es.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === 'plan') {
+      ev.agents.forEach(a => { cards[a.node] = card(a); pipeline.appendChild(cards[a.node]); });
+      markActive(ev.agents[0].node);
+      note.textContent = ev.has_resume ? '' :
+        'No resume.txt found — assessing from public repos only, so expect generic growth targets.';
+    } else if (ev.type === 'agent_done') {
+      fillCard(ev);
+      if (ev.matches) showMatches(ev.matches);
+    } else if (ev.type === 'error') {
+      note.innerHTML = '<span class="err">' + esc(ev.message) + '</span>';
+      es.close(); btn.disabled = false;
+    } else if (ev.type === 'finished') {
+      es.close(); btn.disabled = false;
+    }
+  };
+  es.onerror = () => { es.close(); btn.disabled = false; };
+};
+</script>
+</body>
+</html>
